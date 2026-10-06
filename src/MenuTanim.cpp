@@ -38,11 +38,16 @@ static void yaziBoyaModu(char* t, uint8_t n) {
 }
 
 static void yaziCanliTetik(char* t, uint8_t n) {
-    // "48.5 E:45.0 *"  (* = tetik çekili)
+    // "48.5 D:0.3"  D = son pencerede düşüş,  "* " = tetik çekili
+    if (tetik.cekili()) menuEkle(t, n, "* ");
     psiEkle(t, n, sensor.psi());
-    menuEkle(t, n, " E:");
-    psiEkle(t, n, tetik.cekmeEsigi());
-    if (tetik.cekili()) menuEkle(t, n, " *");
+    if (ayar.tetikModu == TETIK_AKILLI) {
+        menuEkle(t, n, " D:");
+        psiEkle(t, n, tetik.anlikDusus());
+    } else {
+        menuEkle(t, n, " E:");
+        psiEkle(t, n, tetik.cekmeEsigi());
+    }
 }
 
 static void yaziAkis(char* t, uint8_t n) {
@@ -100,6 +105,7 @@ static void akDoldurBoya()   { Ekranlar::doldurAc(1); }
 static void akDoldurSert()   { Ekranlar::doldurAc(2); }
 static void akDoldurKarisim(){ Ekranlar::doldurAc(3); }
 static void akSifirla()      { Ekranlar::sifirlamaAc(); }
+static void akTetikOgren()   { Ekranlar::tetikOgrenAc(); }
 
 static void sayacSifirlaEvet() {
     sayacSifirla();
@@ -130,7 +136,9 @@ static void akKaydet() {
 
 Menu& menuAgaciniKur() {
     // --- Tetik ayarları ---
-    static SecimOge tMod(F("Tetik Modu"), &ayar.tetikModu, F("Fark (düşüş)|Mutlak eşik"));
+    static AksiyonOge tOgren(F("Tetik Öğren"), akTetikOgren, F(" OK: Başlat"));
+    static SecimOge tMod(F("Tetik Modu"), &ayar.tetikModu, F("Akıllı (hız)|Mutlak eşik"));
+    static SayiOge<uint16_t> tPencere(F("Algı Penceresi"), &ayar.tetikPencereMs, 100, 600, 10, 0, F("ms"));
     static SayiOge<uint16_t> tFark(F("Düşüş Farkı"), &ayar.tetikFark_x10, 5, 500, 5, 1, F("psi"));
     static SayiOge<uint16_t> tMutlak(F("Mutlak Eşik"), &ayar.tetikMutlak_x10, 10, 1900, 5, 1, F("psi"));
     static SayiOge<uint16_t> tHist(F("Histerezis"), &ayar.histerezis_x10, 0, 200, 5, 1, F("psi"));
@@ -140,7 +148,7 @@ Menu& menuAgaciniKur() {
     static SayiOge<uint16_t> tMax(F("Maks Püskürt."), &ayar.maxPuskurtmeSn, 0, 600, 5, 0, F("sn"), F("Kapalı"));
     static BilgiOge tCanli(F("Canlı Basınç"), yaziCanliTetik);
     static GeriOge tGeri(F("Geri"));
-    static MenuOge* const tetikOgeler[] = {&tCanli, &tMod, &tFark, &tMutlak, &tHist,
+    static MenuOge* const tetikOgeler[] = {&tCanli, &tOgren, &tMod, &tFark, &tPencere, &tMutlak, &tHist,
                                            &tCekme, &tBirak, &tMin, &tMax, &tGeri};
     static Menu tetikMenu(F("Tetik"), tetikOgeler, DIZI_BOYUT(tetikOgeler));
 

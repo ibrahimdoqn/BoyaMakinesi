@@ -40,6 +40,7 @@ namespace Ekranlar {
     void doldurAc(uint8_t pompaMaske);     // 1: boya, 2: sertleştirici, 3: karışım
     void kalibrasyonAc(uint8_t motor);
     void sifirlamaAc();
+    void tetikOgrenAc();
     void onayAc(FStr soru, void (*evet)());
 }
 

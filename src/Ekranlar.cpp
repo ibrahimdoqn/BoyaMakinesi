@@ -91,15 +91,25 @@ public:
             case 1: {
                 char e[8];
                 t[0] = 0;
-                if (ayar.tetikModu == TETIK_FARK) {
+                if (tetik.cekili()) {
+                    // Çekiliyken: akış basıncı
+                    strcat(t, "Akış:");
+                    psiYaz(e, onda(tetik.akisBasinci()));
+                    strcat(t, e);
+                    strcat(t, " *");
+                } else if (ayar.tetikModu == TETIK_AKILLI) {
+                    // R: statik basınç, D: son pencerede anlık düşüş
                     strcat(t, "R:");
-                    psiYaz(t + strlen(t), onda(tetik.referans()));
-                    strcat(t, " ");
+                    psiYaz(e, onda(tetik.referans()));
+                    strcat(t, e);
+                    strcat(t, " D:");
+                    psiYaz(e, onda(tetik.anlikDusus()));
+                    strcat(t, e);
+                } else {
+                    strcat(t, "Eşik:");
+                    psiYaz(e, onda(tetik.cekmeEsigi()));
+                    strcat(t, e);
                 }
-                strcat(t, "E:");
-                psiYaz(e, onda(tetik.cekmeEsigi()));
-                strcat(t, e);
-                if (tetik.cekili()) strcat(t, " *");
                 g.satir(1, t);
                 break;
             }
@@ -161,9 +171,6 @@ private:
             g.satir(1, F("Düşük basınç!"));
         } else {
             g.satir(1, F("BOYA HAZIR"));
-            t[0] = 'E';
-            psiYaz(t + 1, onda(tetik.cekmeEsigi()));
-            g.sagaYaz(1, t);
         }
     }
 
@@ -463,6 +470,205 @@ public:
 };
 
 // ---------------------------------------------------------------
+// Tetik öğrenme sihirbazı
+//   1. Tetik bırakılıyken 2 sn statik basınç ve dalgalanma ölçülür
+//   2. Kullanıcı tetiği çeker: düşüş anı otomatik yakalanır, düşüşün
+//      ne kadar sürede gerçekleştiği ve akış basıncı ölçülür
+//   3. Önerilen "Düşüş Farkı" ve "Algı Penceresi" gösterilir, OK ile kaydedilir
+// ---------------------------------------------------------------
+class TetikOgrenEkrani : public Ekran {
+public:
+    void giris() override {
+        Sistem::servisModu();      // öğrenirken pompalar çalışmasın
+        _durum = STATIK_HAZIR;
+    }
+    void cikis() override { Sistem::bekleme(); }
+    bool zamanAsimiVar() const override { return false; }
+
+    void tus(const TusBilgi& t) override {
+        if (t.olay != OLAY_BASILDI) return;
+        if (t.tus == TUS_SOL) {
+            Ekranlar::kapat();
+            return;
+        }
+        if (t.tus != TUS_OK) return;
+        switch (_durum) {
+            case STATIK_HAZIR:
+                _olcumBasla();
+                _durum = STATIK_OLC;
+                break;
+            case SONUC:
+                ayar.tetikModu = TETIK_AKILLI;
+                ayar.tetikFark_x10 = _oneriFark;
+                ayar.tetikPencereMs = _oneriPencere;
+                ayar.histerezis_x10 = _oneriHist;
+                Sistem::ayarlariUygula();
+                Sistem::kaydetIste();
+                Ekranlar::kapat();
+                Ekranlar::mesaj(F("Tetik ayarları"), F("kaydedildi"));
+                break;
+            case HATA:
+                _durum = STATIK_HAZIR;
+                break;
+            default:
+                break;
+        }
+    }
+
+    void guncelle() override {
+        uint32_t simdi = millis();
+        float p = sensor.psi();
+        switch (_durum) {
+            case STATIK_OLC:
+                _olcumEkle(p);
+                if (simdi - _bas >= 2000) {
+                    _statik = _toplam / _sayi;
+                    _dalga = _enB - _enK;          // gürültü + kompresör dalgası
+                    _durum = CEKME_BEKLE;
+                    _bas = simdi;
+                }
+                break;
+
+            case CEKME_BEKLE: {
+                // Statik aralığın belirgin altına inince düşüş başladı say
+                float esik = _enK - (_dalga > 1.0f ? _dalga * 0.5f : 0.5f);
+                if (p < esik) {
+                    _durum = CEKILI_OLC;
+                    _bas = simdi;
+                    _izSayi = 0;
+                    _sonIz = simdi;
+                    _olcumBasla();
+                    _bas = simdi;
+                } else if (simdi - _bas > 15000) {
+                    _hata = F("Tetik algılanmadı");
+                    _durum = HATA;
+                }
+                break;
+            }
+
+            case CEKILI_OLC:
+                // İlk 1 sn'nin izini 10 ms aralıkla tut (düşüş hızı için)
+                if (_izSayi < IZ && simdi - _sonIz >= 10) {
+                    _sonIz = simdi;
+                    _iz[_izSayi++] = p;
+                }
+                if (simdi - _bas >= 1000) _olcumEkle(p);   // 1..3 sn: akış basıncı
+                if (simdi - _bas >= 3000) _hesapla();
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    void ciz(Gosterge& g) override {
+        char t[20];
+        g.isik(ayar.lcdIsik);
+        g.temizle();
+        switch (_durum) {
+            case STATIK_HAZIR:
+                g.yaz(0, 0, F("Tetiği BIRAKIN"));
+                g.satir(1, F("OK:Ölç " OK_SOL "İptal"));
+                break;
+            case STATIK_OLC:
+                g.yaz(0, 0, F("Ölçülüyor..."));
+                psiYaz(t, sensor.psiOnda());
+                strcat(t, "psi");
+                g.sagaYaz(1, t);
+                break;
+            case CEKME_BEKLE:
+                g.yaz(0, 0, F("Tetiği ÇEKİN"));
+                g.satir(1, F("ve 3 sn tutun"));
+                break;
+            case CEKILI_OLC:
+                g.yaz(0, 0, F("Tutun..."));
+                psiYaz(t, sensor.psiOnda());
+                strcat(t, "psi");
+                g.sagaYaz(1, t);
+                break;
+            case SONUC:
+                g.yaz(0, 0, F("Düşüş"));
+                psiYaz(t, onda(_dusus));
+                strcat(t, "psi");
+                g.sagaYaz(0, t);
+                strcpy(t, "F");
+                Gosterge::ondalik(t + 1, _oneriFark, 1);
+                strcat(t, " ");
+                itoa(_oneriPencere, t + strlen(t), 10);
+                strcat(t, "ms");
+                g.yaz(0, 1, t);
+                g.sagaYaz(1, F("OK"));
+                break;
+            case HATA:
+                g.satir(0, _hata);
+                g.satir(1, F("OK:Tekrar " OK_SOL "Çık"));
+                break;
+        }
+    }
+
+private:
+    enum { STATIK_HAZIR, STATIK_OLC, CEKME_BEKLE, CEKILI_OLC, SONUC, HATA };
+    static const uint8_t IZ = 100;
+
+    void _olcumBasla() {
+        _bas = millis();
+        _toplam = 0;
+        _sayi = 0;
+        _enB = -1000;
+        _enK = 1000;
+    }
+    void _olcumEkle(float p) {
+        _toplam += p;
+        _sayi++;
+        if (p > _enB) _enB = p;
+        if (p < _enK) _enK = p;
+    }
+
+    void _hesapla() {
+        float akis = _sayi ? _toplam / _sayi : _statik;
+        _dusus = _statik - akis;
+        // Düşüşün %90'ına ulaşma süresi
+        uint16_t t90 = IZ * 10;
+        for (uint8_t i = 0; i < _izSayi; i++) {
+            if (_statik - _iz[i] >= _dusus * 0.9f) {
+                t90 = (uint16_t)i * 10;
+                break;
+            }
+        }
+        // Fark: düşüşün yarısı, ama dalgalanmanın rahatça üstünde olsun
+        float fark = _dusus * 0.5f;
+        if (fark < _dalga * 1.5f) fark = _dalga * 1.5f;
+        if (fark < 1.0f) fark = 1.0f;
+        if (_dusus < 1.5f || fark > _dusus * 0.8f) {
+            _hata = F("Düşüş yetersiz!");
+            _durum = HATA;
+            return;
+        }
+        _oneriFark = ((uint16_t)(fark * 2.0f + 0.5f)) * 5;      // 0.5 psi'ye yuvarla (x10)
+        float hist = _dusus * 0.2f;
+        if (hist < 0.5f) hist = 0.5f;
+        if (hist > 5.0f) hist = 5.0f;
+        _oneriHist = (uint16_t)(hist * 10.0f + 0.5f);
+        // Pencere: düşüş süresinin 2 katı + pay, 150..600 ms
+        uint16_t pencere = (t90 * 2 + 100) / 10 * 10;
+        if (pencere < 150) pencere = 150;
+        if (pencere > 600) pencere = 600;
+        _oneriPencere = pencere;
+        _durum = SONUC;
+    }
+
+    uint8_t _durum = STATIK_HAZIR;
+    uint32_t _bas = 0, _sonIz = 0;
+    float _toplam = 0, _enB = 0, _enK = 0;
+    uint16_t _sayi = 0;
+    float _statik = 0, _dalga = 0, _dusus = 0;
+    float _iz[IZ];
+    uint8_t _izSayi = 0;
+    uint16_t _oneriFark = 50, _oneriHist = 20, _oneriPencere = 300;
+    FStr _hata = nullptr;
+};
+
+// ---------------------------------------------------------------
 // Onay ekranı
 // ---------------------------------------------------------------
 class OnayEkrani : public Ekran {
@@ -496,6 +702,7 @@ static DoldurEkrani doldurEkrani;
 static KalibrasyonEkrani kalibrasyonEkrani;
 static SifirlamaEkrani sifirlamaEkrani;
 static OnayEkrani onayEkrani;
+static TetikOgrenEkrani tetikOgrenEkrani;
 
 static Ekran* yigin[YIGIN_MAX];
 static uint8_t derinlik = 0;
@@ -601,6 +808,8 @@ void kalibrasyonAc(uint8_t motor) {
     kalibrasyonEkrani.motor = motor;
     ac(&kalibrasyonEkrani);
 }
+
+void tetikOgrenAc() { ac(&tetikOgrenEkrani); }
 
 void onayAc(FStr soru, void (*evet)()) {
     onayEkrani.soru = soru;

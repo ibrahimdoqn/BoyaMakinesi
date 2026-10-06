@@ -142,7 +142,7 @@ void ayarlariUygula() {
                   ayar.sifirOfset_x10 / 10.0f, ayar.filtre, ayar.adcRef);
     tetik.ayarla(ayar.tetikModu, ayar.tetikFark_x10 / 10.0f, ayar.tetikMutlak_x10 / 10.0f,
                  ayar.histerezis_x10 / 10.0f, ayar.cekmeGecikme, ayar.birakmaGecikme,
-                 ayar.minBasinc_x10 / 10.0f);
+                 ayar.minBasinc_x10 / 10.0f, ayar.tetikPencereMs);
     // Menüdeki "Normal" yön, PinConfig.h'deki donanım yönüne göredir
     pompa.ayarla(!ayar.enAktifYuksek,
                  (ayar.yon1Ters != 0) != (MOTOR1_YON_TERS != 0),

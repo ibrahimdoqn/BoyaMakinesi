@@ -38,7 +38,13 @@ void BasincSensoru::guncelle() {
     if (!_ilk && simdi - _sonOrnek < ORNEK_ARALIK_MS) return;
     _sonOrnek = simdi;
 
-    _adc = analogRead(_pin);
+    uint16_t okunan = analogRead(_pin);
+    if (_ilk) _son3[0] = _son3[1] = _son3[2] = okunan;
+    _son3[_sira] = okunan;
+    _sira = (_sira + 1) % 3;
+    // 3'lü medyan: motor/kompresör kaynaklı tek örneklik iğneleri atar
+    uint16_t a = _son3[0], b = _son3[1], c = _son3[2];
+    _adc = (a > b) ? ((b > c) ? b : (a > c ? c : a)) : ((a > c) ? a : (b > c ? c : b));
     float p = _adcPsi(_adc) + _ofset;
     // Makul sınırlar içinde tut
     if (p < -_maxPsi * 0.1f) p = -_maxPsi * 0.1f;

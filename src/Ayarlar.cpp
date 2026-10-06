@@ -1,5 +1,6 @@
 #include "Ayarlar.h"
 #include <EEPROM.h>
+#include <stddef.h>
 #include "PinConfig.h"
 
 Ayarlar ayar;
@@ -42,7 +43,7 @@ void ayarVarsayilan() {
     ayar.yon2Ters = 0;
     ayar.enAktifYuksek = 0;
 
-    ayar.tetikModu = 0;           // Fark
+    ayar.tetikModu = 0;           // Akıllı
     ayar.tetikFark_x10 = 50;      // 5.0 psi (50 -> 45 psi)
     ayar.tetikMutlak_x10 = 450;   // 45.0 psi
     ayar.histerezis_x10 = 20;     // 2.0 psi
@@ -66,11 +67,29 @@ void ayarVarsayilan() {
 
     ayar.acilisModu = ACILIS_BEKLEME;
     ayar.lcdIsik = 1;
+
+    ayar.tetikPencereMs = 300;
+}
+
+// Sürüm 2 ayarlarını koruyarak sürüm 3'e geçir.
+// v2 yapısı, v3'ün tetikPencereMs alanına kadar olan kısmı + crc'dir.
+static bool surum2denGecir() {
+    const uint16_t v2Boyut = offsetof(Ayarlar, tetikPencereMs);
+    uint8_t* ham = (uint8_t*)&ayar;
+    for (uint16_t i = 0; i < v2Boyut; i++) ham[i] = EEPROM.read(AYAR_ADRES + i);
+    uint8_t crc = EEPROM.read(AYAR_ADRES + v2Boyut);
+    if (ayar.imza != AYAR_IMZA || ayar.surum != 2 || crc != crc8(ham, v2Boyut)) return false;
+    // Yeni alanlar varsayılan değerle başlar. v2'nin "Fark" modu (0)
+    // aynı numarayla yeni "Akıllı" moda geçer, fark değeri korunur.
+    ayar.tetikPencereMs = 300;
+    ayarKaydet();
+    return true;
 }
 
 bool ayarYukle() {
     EEPROM.get(AYAR_ADRES, ayar);
     if (ayar.imza != AYAR_IMZA || ayar.surum != AYAR_SURUM || ayar.crc != yapiCrc(ayar)) {
+        if (surum2denGecir()) return true;
         ayarVarsayilan();
         ayarKaydet();
         return false;

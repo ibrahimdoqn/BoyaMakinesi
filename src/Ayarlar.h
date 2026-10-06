@@ -14,7 +14,7 @@
 #include <Arduino.h>
 
 #define AYAR_IMZA   0xB0A2
-#define AYAR_SURUM  2        // yapı değişirse artırın -> varsayılanlara döner
+#define AYAR_SURUM  3        // yapı değişirse artırın (ayarYukle'de geçiş yazın)
 #define SAYAC_IMZA  0x5A7C
 #define AYAR_ADRES  0
 #define SAYAC_ADRES 256
@@ -40,7 +40,7 @@ struct Ayarlar {
     uint8_t  enAktifYuksek;     // 0: EN aktif LOW, 1: aktif HIGH
 
     // --- Tetik ---
-    uint8_t  tetikModu;         // 0: Fark, 1: Mutlak
+    uint8_t  tetikModu;         // 0: Akıllı (düşüş hızı), 1: Mutlak
     uint16_t tetikFark_x10;     // psi * 10
     uint16_t tetikMutlak_x10;   // psi * 10
     uint16_t histerezis_x10;    // psi * 10
@@ -67,6 +67,9 @@ struct Ayarlar {
     // --- Sistem ---
     uint8_t  acilisModu;
     uint8_t  lcdIsik;
+
+    // --- Sürüm 3 ile eklenenler (yeni alanlar hep sona, crc'den önce) ---
+    uint16_t tetikPencereMs;    // akıllı tetik algı penceresi
 
     uint8_t  crc;
 };

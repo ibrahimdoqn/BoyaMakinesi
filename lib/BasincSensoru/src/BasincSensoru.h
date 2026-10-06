@@ -3,7 +3,7 @@
 //
 // Varsayılan: 0.5V - 4.5V çıkışlı, 0 - 200 PSI sensör.
 // - Engellemeyen (non-blocking) örnekleme, her 2 ms'de bir okuma
-// - Üstel hareketli ortalama (EMA) filtresi
+// - 3'lü medyan (elektriksel iğneleri atar) + üstel hareketli ortalama (EMA)
 // - Sıfır ofset kalibrasyonu
 // - Kablo kopuk / kısa devre (sensör hatası) algılama
 // =============================================
@@ -50,6 +50,8 @@ private:
     float _alfa = 0.2f;
 
     uint16_t _adc = 0;
+    uint16_t _son3[3] = {0, 0, 0};
+    uint8_t _sira = 0;
     float _ham = 0.0f;
     float _psi = 0.0f;
     bool _ilk = true;

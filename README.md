@@ -54,13 +54,34 @@ Kaydedilen ayar hemen uygulanır ve 2 sn sonra EEPROM'a yazılır.
 
 ## Çalışma
 
-1. **Boya modu:** Boya ve sertleştirici vanalarını elle açın.
-   Basınç referansın *Düşüş Farkı* kadar altına düşerse (ör. 50 → 45 psi) tetik çekilmiş sayılır,
-   pompalar oranla çalışır. Basınç geri yükselince durur.
+1. **Boya modu:** Boya ve sertleştirici vanalarını elle açın. Tetik çekilince pompalar
+   oranla çalışır, bırakılınca durur. Tetik algılama aşağıda anlatılıyor.
 2. **Karışım oranı** hacimseldir. Her pompanın kalibrasyonu (adım/ml) hesaba katılır;
    en çok basan pompa *Motor Hızı*'nda döner, diğeri orana göre.
 3. **Temizlik:** Vanaları elle temizlik sıvısına çevirin, OK ile başlatın. Seçilen pompa
    (varsayılan Pompa 2) herhangi bir tuşa basılana veya *Maks Süre* dolana kadar basar.
+
+## Tetik algılama (Akıllı mod)
+
+Kompresör dolup boşaldıkça hat basıncı **yavaş** dalgalanır (saniyeler içinde birkaç psi).
+Tabanca tetiği çekilince basınç **aniden** düşer (onlarca ms). Akıllı mod mutlak basınca değil
+**düşüş hızına** bakar:
+
+- Son *Algı Penceresi* (varsayılan 300 ms) içindeki en yüksek basınç ile şimdiki basınç
+  karşılaştırılır. Fark ≥ *Düşüş Farkı* ise tetik çekilmiştir. Yavaş kompresör dalgası
+  300 ms'de ancak birkaç onda bir psi değiştirdiği için tetik sanılmaz.
+- Tetik çekildikten sonraki ilk 400 ms'de sert düşüşün ardından gelen geri toparlanma
+  (alt salınım) bırakma sayılmaz.
+- Çekiliyken *akış basıncı* takip edilir; kompresör püskürtme sırasında devreye girse de uyum sağlar.
+  Basınç akış basıncının üzerine aniden çıkarsa veya statik basınca dönerse tetik bırakılmıştır.
+- Sensörde 3'lü medyan filtresi elektriksel iğneleri (motor/kompresör paraziti) atar.
+
+**Tetik Öğren** (Tetik Ayarları menüsü): Tetik bırakılıyken OK → 2 sn statik basınç ve dalgalanma
+ölçülür. Ardından tetiği çekip 3 sn tutun → düşüş miktarı ve hızı ölçülür, önerilen *Düşüş Farkı*,
+*Algı Penceresi* ve histerezis gösterilir, OK ile kaydedilir.
+
+**Canlı Basınç** ekranında ve ana ekranın 2. sayfasında `D:` son penceredeki anlık düşüştür;
+tetik çekilmeden bu değer *Düşüş Farkı*'na yaklaşıyorsa farkı artırın.
 
 ## Menü haritası
 
@@ -68,7 +89,7 @@ Kaydedilen ayar hemen uygulanır ve 2 sn sonra EEPROM'a yazılır.
 - **Temizlik** – temizlik ekranı
 - **Karışım Oranı** – Boya : Sert (0–10 : 0–10, ör. 4:1, 2:1, 1:1, 1:0)
 - **Motor Hızı** – 5–180 dev/dk
-- **Tetik Ayarları** – Canlı basınç, Mod (Fark/Mutlak), Düşüş Farkı, Mutlak Eşik, Histerezis,
+- **Tetik Ayarları** – Canlı basınç, Tetik Öğren, Mod (Akıllı/Mutlak), Düşüş Farkı, Algı Penceresi, Mutlak Eşik, Histerezis,
   Çekme/Bırakma gecikmesi, Min basınç, Maks püskürtme süresi
 - **Pompa Ayarları** – Akış (hesap), Rampa, Boya/Sert./Karışım doldur, P1/P2 kalibrasyon,
   adım/ml değerleri, kalibrasyon adımı, adım/tur, motor yönleri, sürücü EN mantığı
@@ -85,8 +106,8 @@ Kaydedilen ayar hemen uygulanır ve 2 sn sonra EEPROM'a yazılır.
    (varsayılan 32000 adım = 10 tur ≈ 28 ml), ölçülen ml'yi girin. Oranın doğru olması için
    iki pompa da kalibre edilmelidir. *Adım/Tur* değiştirilirse kalibrasyonu tekrarlayın.
 3. Hava hattı boşken **Sıfır Kalibre**.
-4. **Tetik Ayarları → Canlı Basınç** ekranında tabancayı tetikleyerek düşüşü gözleyin,
-   *Düşüş Farkı*'nı buna göre ayarlayın.
+4. **Tetik Ayarları → Tetik Öğren** ile tetik ayarlarını otomatik yapın.
+   İnce ayar için *Canlı Basınç* ekranındaki `D:` değerini izleyin.
 
 ## Güvenlik özellikleri
 
@@ -101,4 +122,4 @@ Kaydedilen ayar hemen uygulanır ve 2 sn sonra EEPROM'a yazılır.
 - `PompaSurucu` Timer1'i kullanır (Servo kütüphanesiyle birlikte kullanılamaz). Step darbeleri
   kesmeyle üretildiği için LCD/menü işlemleri motorları etkilemez. Bu nedenle AccelStepper kaldırıldı.
 - LCD'de Türkçe karakterler (ç ğ ı ş ö ü Ç Ş İ Ü) özel karakterlerle gösterilir; Ğ ve Ö, G ve O görünür.
-- Ayar yapısını değiştirirseniz `Ayarlar.h` içindeki `AYAR_SURUM`'u artırın; cihaz varsayılanlara döner.
+- Ayar yapısına alan eklerken alanı **sona** (crc'den önce) ekleyin, `AYAR_SURUM`'u artırın ve `ayarYukle()` içine bir geçiş yazın (örnek: `surum2denGecir`); böylece kullanıcı ayarları silinmez.
