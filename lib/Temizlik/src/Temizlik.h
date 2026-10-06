@@ -1,13 +1,13 @@
 // =============================================
 // Temizlik - Hortum ve karıştırıcı temizlik döngüsü
 //
+// Vanalar manueldir: kullanıcı temizlik sıvısı vanasını elle açar.
 // Sıra:
-//  1. Pompalar durdurulur, boya ve sertleştirici vanaları kapatılır
-//  2. Temizlik sıvısı vanası açılır, vananın açılması beklenir
-//  3. Seçilen pompa(lar) temizlik sıvısı basar
+//  1. Boya pompaları durdurulur (tamamen durması beklenir)
+//  2. Seçilen pompa(lar) temizlik sıvısı basar
 //     - durdur() çağrılana kadar (DURDUR tuşu), veya
 //     - ayarlanan maksimum süre dolana kadar
-//  4. Pompalar durur, temizlik vanası kapanır
+//  3. Pompalar durur
 //
 // Darbeli mod: 3 sn basma / 1 sn bekleme şeklinde çalışır; hortumdaki
 // kalıntının çalkalanarak sökülmesine yardım eder.
@@ -16,12 +16,11 @@
 #define TEMIZLIK_H
 
 #include <Arduino.h>
-#include <Vanalar.h>
 #include <PompaSurucu.h>
 
 enum TemizlikDurum : uint8_t {
     TMZ_KAPALI = 0,     // hiç başlatılmadı
-    TMZ_HAZIRLIK,       // vana açılıyor
+    TMZ_HAZIRLIK,       // önceki pompalama duruyor
     TMZ_POMPALIYOR,
     TMZ_BITTI           // kullanıcı durdurdu veya süre doldu
 };
@@ -32,16 +31,13 @@ enum TemizlikDurum : uint8_t {
 
 class Temizlik {
 public:
-    void begin(Vanalar& vanalar, PompaSurucu& pompa,
-               uint8_t boyaVana, uint8_t sertVana, uint8_t temizVana);
+    void begin(PompaSurucu& pompa);
 
     // hizAdimSn   : temizlik pompa hızı
     // pompaMaske  : TEMIZLIK_POMPA1 | TEMIZLIK_POMPA2
     // maxSureSn   : en uzun temizlik süresi (0 = sınırsız)
-    // vanaGecikme : vana açıldıktan sonra pompa başlamadan önce bekleme
     // darbeli     : 3 sn bas / 1 sn bekle
-    void ayarla(uint16_t hizAdimSn, uint8_t pompaMaske, uint16_t maxSureSn,
-                uint16_t vanaGecikmeMs, bool darbeli);
+    void ayarla(float hizAdimSn, uint8_t pompaMaske, uint16_t maxSureSn, bool darbeli);
 
     void baslat();
     void durdur();
@@ -56,14 +52,11 @@ public:
 private:
     void _pompalariAyarla(bool calis);
 
-    Vanalar* _v = nullptr;
     PompaSurucu* _p = nullptr;
-    uint8_t _boyaVana = 0, _sertVana = 1, _temizVana = 2;
 
-    uint16_t _hiz = 1600;
+    float _hiz = 5000;
     uint8_t _maske = TEMIZLIK_POMPA2;
     uint16_t _maxSn = 0;
-    uint16_t _vanaGecikme = 100;
     bool _darbeli = false;
 
     uint8_t _durum = TMZ_KAPALI;

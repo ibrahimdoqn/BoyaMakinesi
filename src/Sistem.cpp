@@ -7,7 +7,6 @@ Butonlar butonlar;
 BasincSensoru sensor;
 Tetik tetik;
 PompaSurucu pompa;
-Vanalar vanalar;
 Temizlik temizlik;
 
 namespace {
@@ -16,7 +15,6 @@ namespace {
     bool _puskurtme = false;
     bool _maxAsildi = false;
     uint32_t _puskurtmeBas = 0;
-    uint32_t _pompaBaslat = 0;
 
     // Pot ömrü (karışımın hortumda bekleme süresi) takibi
     bool _karisimVar = false;
@@ -41,25 +39,6 @@ namespace {
     const uint32_t SAYAC_KAYIT_ARALIK_MS = 10UL * 60UL * 1000UL;
     const uint32_t TEMIZLIK_GECERLI_MS = 5000;   // bu süreden uzun temizlik pot ömrünü sıfırlar
 
-    void boyaVanalariniAyarla() {
-        if (_mod != MOD_BOYA) return;
-        bool ac = ayar.vanaModu == VANA_MOD_BOYUNCA || _puskurtme;
-        vanalar.ayarla(VANA_BOYA, ac && ayar.oranBoya > 0);
-        vanalar.ayarla(VANA_SERT, ac && ayar.oranSert > 0);
-    }
-
-    void role4Guncelle() {
-        if (_mod == MOD_SERVIS) return;   // röle testi serbestçe sürebilsin
-        bool ac = false;
-        switch (ayar.role4Gorev) {
-            case ROLE4_BOYA_MODU: ac = _mod == MOD_BOYA; break;
-            case ROLE4_PUSKURTME: ac = _puskurtme; break;
-            case ROLE4_TEMIZLIK:  ac = temizlik.calisiyor(); break;
-            default: break;       // görevsiz: kapalı
-        }
-        vanalar.ayarla(VANA_YEDEK, ac);
-    }
-
     void boyaGuncelle(uint32_t simdi) {
         bool istek = tetik.cekili() && !sensor.hata();
         if (!tetik.cekili()) _maxAsildi = false;     // tetik bırakılınca kilit kalkar
@@ -73,8 +52,6 @@ namespace {
             _puskurtmeBas = simdi;
             sayac.puskurtmeSayisi++;
             _sayacKirli = true;
-            boyaVanalariniAyarla();
-            _pompaBaslat = simdi + (ayar.vanaModu == VANA_MOD_PUSKURTMEDE ? ayar.vanaGecikme : 0);
         }
 
         if (!_puskurtme) return;
@@ -83,17 +60,14 @@ namespace {
             _puskurtme = false;
             pompa.durdur();
             _sonPuskurtme = simdi;
-            boyaVanalariniAyarla();
             return;
         }
 
-        if ((int32_t)(simdi - _pompaBaslat) >= 0) {
-            // Her döngüde yeniden hesapla: menüden oran/hız değişirse anında uygulanır
-            float h1, h2;
-            Sistem::oranHizlari(h1, h2);
-            pompa.hizAyarla(0, h1);
-            pompa.hizAyarla(1, h2);
-        }
+        // Her döngüde yeniden hesapla: menüden oran/hız değişirse anında uygulanır
+        float h1, h2;
+        Sistem::oranHizlari(h1, h2);
+        pompa.hizAyarla(0, h1);
+        pompa.hizAyarla(1, h2);
         if (ayar.oranSert > 0) _karisimVar = true;
         _sonPuskurtme = simdi;
     }
@@ -142,9 +116,6 @@ void begin() {
     ayarYukle();
     sayacYukle();
 
-    const uint8_t roleler[Vanalar::SAYI] = {ROLE1_PIN, ROLE2_PIN, ROLE3_PIN, ROLE4_PIN};
-    vanalar.begin(roleler, !ayar.roleAktifYuksek);
-
     pompa.begin(MOTOR1_STEP_PIN, MOTOR1_DIR_PIN, MOTOR1_EN_PIN,
                 MOTOR2_STEP_PIN, MOTOR2_DIR_PIN, MOTOR2_EN_PIN);
 
@@ -153,7 +124,7 @@ void begin() {
     butonlar.begin(tuslar, true);
 
     sensor.begin(BASINC_SENSOR_PIN);
-    temizlik.begin(vanalar, pompa, VANA_BOYA, VANA_SERT, VANA_TEMIZ);
+    temizlik.begin(pompa);
 
     ayarlariUygula();
 
@@ -172,12 +143,14 @@ void ayarlariUygula() {
     tetik.ayarla(ayar.tetikModu, ayar.tetikFark_x10 / 10.0f, ayar.tetikMutlak_x10 / 10.0f,
                  ayar.histerezis_x10 / 10.0f, ayar.cekmeGecikme, ayar.birakmaGecikme,
                  ayar.minBasinc_x10 / 10.0f);
-    pompa.ayarla(!ayar.enAktifYuksek, ayar.yon1Ters, ayar.yon2Ters, ayar.rampaMs);
-    vanalar.aktifDusukAyarla(!ayar.roleAktifYuksek);
-    temizlik.ayarla(ayar.temizHiz, ayar.temizPompa + 1, ayar.temizMaxSn,
-                    ayar.vanaGecikme, ayar.temizDarbeli);
+    // Menüdeki "Normal" yön, PinConfig.h'deki donanım yönüne göredir
+    pompa.ayarla(!ayar.enAktifYuksek,
+                 (ayar.yon1Ters != 0) != (MOTOR1_YON_TERS != 0),
+                 (ayar.yon2Ters != 0) != (MOTOR2_YON_TERS != 0),
+                 ayar.rampaMs);
+    temizlik.ayarla(rpmAdim(ayar.temizHiz), ayar.temizPompa + 1, ayar.temizMaxSn,
+                    ayar.temizDarbeli);
     gosterge.isik(ayar.lcdIsik);
-    boyaVanalariniAyarla();
 }
 
 void kaydetIste() {
@@ -208,7 +181,6 @@ void guncelle() {
             break;
     }
 
-    role4Guncelle();
     sayaclariGuncelle(simdi);
 
     if (_kaydetBekliyor && simdi - _kaydetZamani >= KAYIT_GECIKME_MS) {
@@ -225,7 +197,6 @@ void bekleme() {
     if (_puskurtme) _sonPuskurtme = millis();
     _puskurtme = false;
     _maxAsildi = false;
-    vanalar.hepsiniKapat();
     if (_mod == MOD_BOYA || _mod == MOD_TEMIZLIK) sayaclariKaydet();
     _mod = MOD_BEKLEME;
 }
@@ -235,7 +206,6 @@ void boyaModuBaslat() {
     tetik.sifirla(sensor.psi());
     _mod = MOD_BOYA;
     _boyaDakikaZamani = millis();
-    boyaVanalariniAyarla();
 }
 
 void boyaModuDegistir() {
@@ -259,6 +229,11 @@ float adimMl(uint8_t motor) {
     return k / 10.0f;
 }
 
+float rpmAdim(float rpm) {
+    float h = rpm * ayar.adimTur / 60.0f;
+    return h > PompaSurucu::MUTLAK_MAX_HIZ ? PompaSurucu::MUTLAK_MAX_HIZ : h;
+}
+
 void oranHizlari(float& h1, float& h2) {
     // Hacimsel oran -> adım oranı (her pompanın kendi kalibrasyonu ile)
     float s1 = ayar.oranBoya * adimMl(0);
@@ -269,7 +244,7 @@ void oranHizlari(float& h1, float& h2) {
         return;
     }
     // En hızlı pompa "Motor Hızı" ayarında döner, diğeri orana göre
-    float k = ayar.motorHizi / enBuyuk;
+    float k = rpmAdim(ayar.motorHizi) / enBuyuk;
     h1 = s1 * k;
     h2 = s2 * k;
 }

@@ -6,22 +6,20 @@
 // Arduino Mega 2560
 // =============================================
 
-// --- Röle Pinleri (Selenoid Vanalar) ---
-#define ROLE1_PIN 47    // Boya vanası
-#define ROLE2_PIN 46    // Sertleştirici vanası
-#define ROLE3_PIN 45    // Temizlik sıvısı vanası
-#define ROLE4_PIN 44    // Yedek röle (görevi menüden seçilir)
-
-// Vanalar kütüphanesindeki röle sıraları
-#define VANA_BOYA    0
-#define VANA_SERT    1
-#define VANA_TEMIZ   2
-#define VANA_YEDEK   3
+// Not: Vanalar manuel (elle) kumanda edilir, röle kullanılmaz.
+// Eski röle pinleri (44-47) boştadır.
 
 // --- Step Motor 1 (Boya Pompası) ---
 #define MOTOR1_STEP_PIN 23
 #define MOTOR1_DIR_PIN  24
 #define MOTOR1_EN_PIN   25
+
+// --- Motor sürücü: TB6600, 16 mikro adım ---
+#define MOTOR_ADIM_TUR      3200    // varsayılan darbe/tur (menüden değişir)
+// Donanımın temel yönü. Menüdeki "Normal" yön bu yönü kullanır.
+// (1 = DIR pini HIGH iken ileri)
+#define MOTOR1_YON_TERS     1
+#define MOTOR2_YON_TERS     1
 
 // --- Step Motor 2 (Sertleştirici Pompası) ---
 #define MOTOR2_STEP_PIN 50
@@ -44,9 +42,15 @@
 #define LCD_SATIR 2
 
 // --- Sistem Sabitleri ---
-#define MOTOR_MAX_HIZ       3200    // adım/sn
-#define MOTOR_MIN_HIZ       200     // adım/sn
-#define MOTOR_HIZ_ADIM      100     // menüde artış miktarı
+#define MOTOR_MAX_RPM       180     // 180 dev/dk x 3200 = 9600 adım/sn (sürücü sınırı 10000)
+#define MOTOR_MIN_RPM       5
+#define MOTOR_RPM_ADIM      5       // menüde artış miktarı
+
+// --- Peristaltik hortum: 17# (İç Çap 6.4 mm, Dış Çap 9.6 mm) ---
+// 17# hortum standart pompa kafasında yaklaşık 2.8 ml/tur basar.
+// 3200 adım / 2.8 ml = ~1143 adım/ml. Kesin değer için kalibrasyon yapın.
+#define HORTUM_ML_TUR_X10   28
+
 #define MAX_KARISIM_ORANI   10
 #define MIN_KARISIM_ORANI   0
 #define BASINC_MAX_PSI      200.0f

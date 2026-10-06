@@ -31,11 +31,13 @@ void ayarVarsayilan() {
 
     ayar.oranBoya = 4;
     ayar.oranSert = 1;
-    ayar.motorHizi = 1600;
+    ayar.motorHizi = 60;          // dev/dk (17# hortumla ~168 ml/dk)
+    ayar.adimTur = MOTOR_ADIM_TUR;
     ayar.rampaMs = 150;
-    ayar.kal1_x10 = 10000;        // 1000.0 adım/ml (kalibre edilmeli)
-    ayar.kal2_x10 = 10000;
-    ayar.kalibAdim = 5000;
+    // 17# hortum ~2.8 ml/tur -> 3200 / 2.8 = 1142.9 adım/ml (kalibre edilmeli)
+    ayar.kal1_x10 = (uint32_t)MOTOR_ADIM_TUR * 100UL / HORTUM_ML_TUR_X10;
+    ayar.kal2_x10 = ayar.kal1_x10;
+    ayar.kalibAdim = MOTOR_ADIM_TUR * 10;   // 10 tur (~28 ml)
     ayar.yon1Ters = 0;
     ayar.yon2Ters = 0;
     ayar.enAktifYuksek = 0;
@@ -49,12 +51,7 @@ void ayarVarsayilan() {
     ayar.minBasinc_x10 = 100;     // 10.0 psi
     ayar.maxPuskurtmeSn = 120;
 
-    ayar.vanaModu = VANA_MOD_BOYUNCA;
-    ayar.vanaGecikme = 100;
-    ayar.roleAktifYuksek = 0;
-    ayar.role4Gorev = ROLE4_YOK;
-
-    ayar.temizHiz = 2000;
+    ayar.temizHiz = 90;           // dev/dk
     ayar.temizPompa = 1;          // Pompa 2
     ayar.temizMaxSn = 300;
     ayar.temizDarbeli = 0;

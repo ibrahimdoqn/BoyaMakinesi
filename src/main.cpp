@@ -8,8 +8,7 @@
 //   BasincSensoru : basınç okuma, filtre, kalibrasyon, hata algılama
 //   Tetik         : basınç düşüşünden tetik algılama
 //   PompaSurucu   : iki step motor, kesme tabanlı, oran korumalı
-//   Vanalar       : röle / selenoid vana kontrolü
-//   Temizlik      : temizlik döngüsü
+//   Temizlik      : temizlik döngüsü (vanalar manuel)
 //   Butonlar      : 5 tuş, debounce, basılı tutma
 //   Gosterge      : 16x2 LCD tamponu, Türkçe karakter
 //   Menu          : modüler menü sistemi

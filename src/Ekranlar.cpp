@@ -218,10 +218,12 @@ public:
 
         switch (temizlik.durum()) {
             case TMZ_KAPALI:
-                g.satir(1, F("OK:Başla " OK_SOL "Çıkış"));
+                // Vanalar manuel: başlamadan önce hatırlat
+                if ((millis() / 1500) % 2) g.satir(1, F("Vanaları çevirin"));
+                else g.satir(1, F("OK:Başla " OK_SOL "Çıkış"));
                 break;
             case TMZ_HAZIRLIK:
-                g.satir(1, F("Vana açılıyor.."));
+                g.satir(1, F("Hazırlanıyor.."));
                 break;
             case TMZ_POMPALIYOR: {
                 uint8_t m = pompaSecimMaske() == 1 ? 0 : 1;
@@ -272,18 +274,12 @@ public:
         if (calis) {
             float h1 = 0, h2 = 0;
             if (maske == 3) Sistem::oranHizlari(h1, h2);
-            else if (maske == 1) h1 = ayar.motorHizi;
-            else h2 = ayar.motorHizi;
-            vanalar.ayarla(VANA_BOYA, h1 > 0);
-            vanalar.ayarla(VANA_SERT, h2 > 0);
+            else if (maske == 1) h1 = Sistem::rpmAdim(ayar.motorHizi);
+            else h2 = Sistem::rpmAdim(ayar.motorHizi);
             pompa.hizAyarla(0, h1);
             pompa.hizAyarla(1, h2);
         } else {
             pompa.durdur();
-            if (!pompa.calisiyor()) {
-                vanalar.kapat(VANA_BOYA);
-                vanalar.kapat(VANA_SERT);
-            }
         }
     }
 
@@ -338,9 +334,8 @@ public:
         switch (_durum) {
             case HAZIR:
                 if (bas && t.tus == TUS_OK) {
-                    vanalar.ac(_vana());
                     _bas = pompa.adimSayisi(motor);
-                    pompa.adimlaCalistir(motor, ayar.motorHizi, ayar.kalibAdim);
+                    pompa.adimlaCalistir(motor, Sistem::rpmAdim(ayar.motorHizi), ayar.kalibAdim);
                     _durum = POMPA;
                 } else if (bas && t.tus == TUS_SOL) {
                     Ekranlar::kapat();
@@ -349,7 +344,6 @@ public:
             case POMPA:
                 if (bas && t.tus == TUS_SOL) {
                     pompa.hemenDurdur();
-                    vanalar.hepsiniKapat();
                     _durum = HAZIR;
                 }
                 break;
@@ -380,7 +374,6 @@ public:
 
     void guncelle() override {
         if (_durum == POMPA && !pompa.calisiyor(motor)) {
-            vanalar.kapat(_vana());
             _adim = pompa.adimSayisi(motor) - _bas;
             if (_adim == 0) {
                 _durum = HAZIR;
@@ -431,7 +424,6 @@ public:
 
 private:
     enum { HAZIR, POMPA, OLCUM, SONUC };
-    uint8_t _vana() const { return motor == 0 ? VANA_BOYA : VANA_SERT; }
     uint8_t _durum = HAZIR;
     uint32_t _bas = 0, _adim = 0, _ml_x10 = 0;
 };
@@ -471,44 +463,6 @@ public:
 };
 
 // ---------------------------------------------------------------
-// Röle test ekranı: YUKARI/AŞAĞI röle seç, OK aç/kapat, SOL çıkış
-// ---------------------------------------------------------------
-class RoleTestEkrani : public Ekran {
-public:
-    void giris() override {
-        Sistem::servisModu();
-        _sec = 0;
-    }
-    void cikis() override { Sistem::bekleme(); }
-    bool zamanAsimiVar() const override { return false; }
-
-    void tus(const TusBilgi& t) override {
-        if (t.olay != OLAY_BASILDI) return;
-        switch (t.tus) {
-            case TUS_YUKARI: _sec = (_sec + Vanalar::SAYI - 1) % Vanalar::SAYI; break;
-            case TUS_ASAGI:  _sec = (_sec + 1) % Vanalar::SAYI; break;
-            case TUS_OK:
-            case TUS_SAG:    vanalar.ayarla(_sec, !vanalar.acik(_sec)); break;
-            case TUS_SOL:    Ekranlar::kapat(); break;
-        }
-    }
-    void ciz(Gosterge& g) override {
-        g.temizle();
-        switch (_sec) {
-            case 0: g.yaz(0, 0, F("Röle1 Boya")); break;
-            case 1: g.yaz(0, 0, F("Röle2 Sertleş.")); break;
-            case 2: g.yaz(0, 0, F("Röle3 Temizlik")); break;
-            case 3: g.yaz(0, 0, F("Röle4 Yedek")); break;
-        }
-        g.yaz(0, 1, vanalar.acik(_sec) ? F("AÇIK") : F("KAPALI"));
-        g.sagaYaz(1, F("OK:Değiş"));
-    }
-
-private:
-    uint8_t _sec = 0;
-};
-
-// ---------------------------------------------------------------
 // Onay ekranı
 // ---------------------------------------------------------------
 class OnayEkrani : public Ekran {
@@ -541,7 +495,6 @@ static TemizlikEkrani temizlikEkrani;
 static DoldurEkrani doldurEkrani;
 static KalibrasyonEkrani kalibrasyonEkrani;
 static SifirlamaEkrani sifirlamaEkrani;
-static RoleTestEkrani roleTestEkrani;
 static OnayEkrani onayEkrani;
 
 static Ekran* yigin[YIGIN_MAX];
@@ -638,7 +591,6 @@ void guncelle() {
 void menuAc() { ac(&menuEkrani); }
 void temizlikAc() { ac(&temizlikEkrani); }
 void sifirlamaAc() { ac(&sifirlamaEkrani); }
-void roleTestAc() { ac(&roleTestEkrani); }
 
 void doldurAc(uint8_t maske) {
     doldurEkrani.maske = maske;

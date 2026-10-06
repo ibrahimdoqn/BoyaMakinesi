@@ -3,22 +3,15 @@
 static const uint16_t DARBE_ACIK_MS = 3000;
 static const uint16_t DARBE_KAPALI_MS = 1000;
 
-void Temizlik::begin(Vanalar& vanalar, PompaSurucu& pompa,
-                     uint8_t boyaVana, uint8_t sertVana, uint8_t temizVana) {
-    _v = &vanalar;
+void Temizlik::begin(PompaSurucu& pompa) {
     _p = &pompa;
-    _boyaVana = boyaVana;
-    _sertVana = sertVana;
-    _temizVana = temizVana;
     _durum = TMZ_KAPALI;
 }
 
-void Temizlik::ayarla(uint16_t hizAdimSn, uint8_t pompaMaske, uint16_t maxSureSn,
-                      uint16_t vanaGecikmeMs, bool darbeli) {
+void Temizlik::ayarla(float hizAdimSn, uint8_t pompaMaske, uint16_t maxSureSn, bool darbeli) {
     _hiz = hizAdimSn;
     _maske = pompaMaske ? pompaMaske : TEMIZLIK_POMPA2;
     _maxSn = maxSureSn;
-    _vanaGecikme = vanaGecikmeMs;
     _darbeli = darbeli;
     if (_durum == TMZ_POMPALIYOR && _darbeAcik) _pompalariAyarla(true);  // hız değişti
 }
@@ -31,11 +24,8 @@ void Temizlik::_pompalariAyarla(bool calis) {
 }
 
 void Temizlik::baslat() {
-    if (!_v || !_p) return;
+    if (!_p) return;
     _p->durdur();
-    _v->kapat(_boyaVana);
-    _v->kapat(_sertVana);
-    _v->ac(_temizVana);
     _durum = TMZ_HAZIRLIK;
     _sureDoldu = false;
     _baslangic = millis();
@@ -46,7 +36,6 @@ void Temizlik::baslat() {
 void Temizlik::durdur() {
     if (!calisiyor()) return;
     _p->durdur();
-    _v->kapat(_temizVana);
     _durum = TMZ_BITTI;
     _bitis = millis();
     _adimBitis = pompalananAdim();
@@ -57,8 +46,8 @@ void Temizlik::guncelle() {
     uint32_t simdi = millis();
 
     if (_durum == TMZ_HAZIRLIK) {
-        // Boya pompaları tamamen durup vana açıldıktan sonra başla
-        if (simdi - _baslangic >= _vanaGecikme && !_p->calisiyor()) {
+        // Önceki pompalama tamamen durduktan sonra başla
+        if (!_p->calisiyor()) {
             _durum = TMZ_POMPALIYOR;
             _darbeAcik = true;
             _darbeZamani = simdi;

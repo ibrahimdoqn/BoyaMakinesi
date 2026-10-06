@@ -100,7 +100,6 @@ static void akDoldurBoya()   { Ekranlar::doldurAc(1); }
 static void akDoldurSert()   { Ekranlar::doldurAc(2); }
 static void akDoldurKarisim(){ Ekranlar::doldurAc(3); }
 static void akSifirla()      { Ekranlar::sifirlamaAc(); }
-static void akRoleTest()     { Ekranlar::roleTestAc(); }
 
 static void sayacSifirlaEvet() {
     sayacSifirla();
@@ -155,30 +154,20 @@ Menu& menuAgaciniKur() {
     static AksiyonOge pKal2(F("P2 Kalibrasyon"), akKalib2, F(" OK: Başlat"));
     static SayiOge<uint32_t> pK1(F("P1 Adım/ml"), &ayar.kal1_x10, 10, 999999, 1, 1);
     static SayiOge<uint32_t> pK2(F("P2 Adım/ml"), &ayar.kal2_x10, 10, 999999, 1, 1);
-    static SayiOge<uint16_t> pKAdim(F("Kalib. Adım"), &ayar.kalibAdim, 500, 60000, 500, 0, F("adım"));
+    static SayiOge<uint16_t> pKAdim(F("Kalib. Adım"), &ayar.kalibAdim, 800, 64000, 800, 0, F("adım"));
+    static SayiOge<uint16_t> pAdimTur(F("Adım/Tur"), &ayar.adimTur, 200, 25600, 200, 0, F("darbe"));
     static SecimOge pYon1(F("P1 Yönü"), &ayar.yon1Ters, F("Normal|Ters"));
     static SecimOge pYon2(F("P2 Yönü"), &ayar.yon2Ters, F("Normal|Ters"));
     static SecimOge pEn(F("Sürücü EN"), &ayar.enAktifYuksek, F("Aktif LOW|Aktif HIGH"));
     static GeriOge pGeri(F("Geri"));
     static MenuOge* const pompaOgeler[] = {&pAkis, &pRampa, &pDoldurB, &pDoldurS, &pDoldurK,
-                                           &pKal1, &pKal2, &pK1, &pK2, &pKAdim,
+                                           &pKal1, &pKal2, &pK1, &pK2, &pKAdim, &pAdimTur,
                                            &pYon1, &pYon2, &pEn, &pGeri};
     static Menu pompaMenu(F("Pompa"), pompaOgeler, DIZI_BOYUT(pompaOgeler));
 
-    // --- Vana / röle ayarları ---
-    static SecimOge vMod(F("Vana Modu"), &ayar.vanaModu, F("Mod boyunca|Püskürtmede"));
-    static SayiOge<uint16_t> vGecikme(F("Vana Gecikme"), &ayar.vanaGecikme, 0, 2000, 10, 0, F("ms"));
-    static SecimOge vMantik(F("Röle Mantığı"), &ayar.roleAktifYuksek, F("Aktif LOW|Aktif HIGH"));
-    static SecimOge vR4(F("Röle4 Görevi"), &ayar.role4Gorev,
-                        F("Kullanılmıyor|Boya modunda|Püskürtmede|Temizlikte"));
-    static AksiyonOge vTest(F("Röle Testi"), akRoleTest, F(" OK: Aç"));
-    static GeriOge vGeri(F("Geri"));
-    static MenuOge* const vanaOgeler[] = {&vMod, &vGecikme, &vMantik, &vR4, &vTest, &vGeri};
-    static Menu vanaMenu(F("Vana"), vanaOgeler, DIZI_BOYUT(vanaOgeler));
-
     // --- Temizlik ayarları ---
-    static SayiOge<uint16_t> cHiz(F("Temizlik Hızı"), &ayar.temizHiz, MOTOR_MIN_HIZ, MOTOR_MAX_HIZ,
-                                  MOTOR_HIZ_ADIM, 0, F("adım/s"));
+    static SayiOge<uint16_t> cHiz(F("Temizlik Hızı"), &ayar.temizHiz, MOTOR_MIN_RPM, MOTOR_MAX_RPM,
+                                  MOTOR_RPM_ADIM, 0, F("dev/dk"));
     static SecimOge cPompa(F("Temiz. Pompa"), &ayar.temizPompa, F("Pompa 1|Pompa 2|İkisi"));
     static SayiOge<uint16_t> cMax(F("Maks Süre"), &ayar.temizMaxSn, 0, 1800, 10, 0, F("sn"), F("Sınırsız"));
     static SecimOge cDarbe(F("Darbeli Mod"), &ayar.temizDarbeli, F("Kapalı|Açık (3s/1s)"));
@@ -228,17 +217,16 @@ Menu& menuAgaciniKur() {
     static AksiyonOge aTemiz(F("Temizlik"), akTemizlik, F(" OK: Aç"));
     static OranOge aOran(F("Karışım Oranı"), &ayar.oranBoya, &ayar.oranSert,
                          MIN_KARISIM_ORANI, MAX_KARISIM_ORANI);
-    static SayiOge<uint16_t> aHiz(F("Motor Hızı"), &ayar.motorHizi, MOTOR_MIN_HIZ, MOTOR_MAX_HIZ,
-                                  MOTOR_HIZ_ADIM, 0, F("adım/s"));
+    static SayiOge<uint16_t> aHiz(F("Motor Hızı"), &ayar.motorHizi, MOTOR_MIN_RPM, MOTOR_MAX_RPM,
+                                  MOTOR_RPM_ADIM, 0, F("dev/dk"));
     static AltMenuOge aTetik(F("Tetik Ayarları"), &tetikMenu);
     static AltMenuOge aPompa(F("Pompa Ayarları"), &pompaMenu);
-    static AltMenuOge aVana(F("Vana/Röle"), &vanaMenu);
     static AltMenuOge aTemizA(F("Temizlik Ayar."), &temizMenu);
     static AltMenuOge aSensor(F("Sensör Ayarı"), &sensorMenu);
     static AltMenuOge aSistem(F("Sistem"), &sistemMenu);
     static GeriOge aCikis(F("Çıkış"));
     static MenuOge* const anaOgeler[] = {&aBoya, &aTemiz, &aOran, &aHiz, &aTetik, &aPompa,
-                                         &aVana, &aTemizA, &aSensor, &aSistem, &aCikis};
+                                         &aTemizA, &aSensor, &aSistem, &aCikis};
     static Menu anaMenu(F("Ana Menü"), anaOgeler, DIZI_BOYUT(anaOgeler));
 
     return anaMenu;
