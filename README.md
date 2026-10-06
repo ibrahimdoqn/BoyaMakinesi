@@ -38,14 +38,28 @@ Kütüphaneler birbirinden ve `PinConfig.h`'den bağımsızdır; pinler ve ayarl
 
 ## Tuşlar
 
-**Ana ekran**
+**Ana ekran – Bekleme**
 
 | Tuş    | İşlev |
 |--------|-------|
-| YUKARI | Boya modunu başlat / durdur |
+| YUKARI | Boya modunu başlat |
 | AŞAĞI  | Temizlik ekranı |
-| SOL/SAĞ| Bilgi sayfaları: durum, tetik referansı/eşiği, akış, oturum tüketimi, pot ömrü |
 | OK     | Menü (pot ömrü uyarısı varsa önce uyarıyı susturur) |
+
+**Ana ekran – Boya modu (hızlı ayar)**
+
+Satır 1: basınç + durum (`HAZIR`, `→PÜSK`, `DÜŞÜK`, `MAKS!`). Satır 2: seçili sayfa.
+
+| Tuş      | İşlev |
+|----------|-------|
+| SOL/SAĞ  | Sayfa seç |
+| YUKARI/AŞAĞI | Sayfadaki değeri değiştir – anında uygulanır, 2 sn sonra EEPROM'a kaydedilir |
+| OK       | Menü |
+| OK basılı tut (1 sn) | Boya modunu durdur |
+
+Sayfalar: **Hız** (dev/dk + hesaplanan ml/dk) · **Oran** (1:0, 10:1, 5:1, 4:1, 3:1, 2:1, 3:2, 1:1, 1:2, 1:4
+arasında geçer; diğer oranlar menüden) · **Tetik Fark** (veya Mutlak modda eşik) ·
+Tetik canlı (salt okunur) · Oturum tüketimi · Pot ömrü
 
 **Menüde:** YUKARI/AŞAĞI gezin, OK/SAĞ gir-düzenle, SOL geri.
 **Değer düzenlerken** değer `[köşeli parantez]` içinde görünür: YUKARI/AŞAĞI değiştir

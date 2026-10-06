@@ -41,24 +41,73 @@ static uint8_t pompaSecimMaske() {
 
 // ---------------------------------------------------------------
 // Ana ekran
-//   YUKARI : Boya modu başlat / durdur
-//   AŞAĞI  : Temizlik ekranı
-//   SOL/SAĞ: bilgi sayfaları
-//   OK     : Menü (pot ömrü uyarısı varsa önce uyarıyı susturur)
+//
+// Satır 1: basınç + durum (BEKLE / HAZIR / PÜSK / DÜŞÜK ...)
+// Satır 2: BEKLEME'de tuş ipucu, BOYA modunda hızlı ayar sayfaları
+//
+// BEKLEME : YUKARI = boya modunu başlat, AŞAĞI = temizlik, OK = menü
+// BOYA    : SOL/SAĞ = sayfa seç, YUKARI/AŞAĞI = değeri değiştir (anında
+//           uygulanır, otomatik kaydedilir), OK = menü,
+//           OK basılı tut (1 sn) = boya modunu durdur
+// Hızlı ayar sayfaları: Motor hızı, Karışım oranı, Tetik farkı/eşiği
+// Bilgi sayfaları     : Tetik canlı, Oturum tüketimi, Pot ömrü
 // ---------------------------------------------------------------
+
+// Hızlı seçim için yaygın karışım oranları (boya oranı büyükten küçüğe)
+static const uint8_t ORAN_LISTESI[][2] PROGMEM = {
+    {1, 0}, {10, 1}, {5, 1}, {4, 1}, {3, 1}, {2, 1}, {3, 2}, {1, 1}, {1, 2}, {1, 4},
+};
+static const uint8_t ORAN_SAYISI = sizeof(ORAN_LISTESI) / sizeof(ORAN_LISTESI[0]);
+
+// Boya oranı / toplam: oranları sıralamak için
+static float boyaPayi(uint8_t a, uint8_t b) {
+    return (a + b) ? (float)a / (a + b) : 1.0f;
+}
+
 class AnaEkran : public Ekran {
 public:
     void tus(const TusBilgi& t) override {
-        if (t.olay != OLAY_BASILDI) return;
-        switch (t.tus) {
-            case TUS_OK:
+        bool boya = Sistem::mod() == MOD_BOYA;
+
+        // OK: kısa bas-bırak = menü, uzun bas = boya modunu durdur
+        if (t.tus == TUS_OK) {
+            if (t.olay == OLAY_BASILDI) {
+                _okBasili = true;
+                _okUzun = false;
+            } else if (t.olay == OLAY_UZUN && _okBasili) {
+                _okUzun = true;
+                if (boya) {
+                    Sistem::bekleme();
+                    Ekranlar::mesaj(F("Boya modu"), F("durduruldu"));
+                }
+            } else if (t.olay == OLAY_BIRAKILDI && _okBasili) {
+                _okBasili = false;
+                if (_okUzun) return;
                 if (Sistem::potOmruDoldu()) Sistem::potUyarisiSustur();
                 else Ekranlar::menuAc();
-                break;
-            case TUS_YUKARI: Sistem::boyaModuDegistir(); _sayfa = 0; break;
-            case TUS_ASAGI:  Ekranlar::temizlikAc(); break;
-            case TUS_SOL:    _sayfa = (_sayfa + SAYFA - 1) % SAYFA; break;
-            case TUS_SAG:    _sayfa = (_sayfa + 1) % SAYFA; break;
+            }
+            return;
+        }
+
+        bool bas = t.olay == OLAY_BASILDI;
+        bool tekrar = bas || t.olay == OLAY_TEKRAR;
+
+        if (!boya) {
+            if (!bas) return;
+            if (t.tus == TUS_YUKARI) {
+                Sistem::boyaModuBaslat();
+                _sayfa = 0;
+            } else if (t.tus == TUS_ASAGI) {
+                Ekranlar::temizlikAc();
+            }
+            return;
+        }
+
+        switch (t.tus) {
+            case TUS_SOL: if (bas) _sayfa = (_sayfa + SAYFA - 1) % SAYFA; break;
+            case TUS_SAG: if (bas) _sayfa = (_sayfa + 1) % SAYFA; break;
+            case TUS_YUKARI: if (tekrar) _degistir(+1, t.tekrar); break;
+            case TUS_ASAGI:  if (tekrar) _degistir(-1, t.tekrar); break;
         }
     }
 
@@ -66,39 +115,74 @@ public:
         char t[24];
         bool yanip = (millis() / 500) % 2;
         bool potDoldu = Sistem::potOmruDoldu();
+        bool boya = Sistem::mod() == MOD_BOYA;
 
         // Uyarı varsa arka ışık yanıp söner
         g.isik(potDoldu ? yanip : ayar.lcdIsik);
-
-        // Satır 1: basınç ve karışım oranı
         g.temizle();
+
+        // --- Satır 1: basınç + durum ---
         if (sensor.hata()) {
             g.satir(0, F("SENSÖR HATASI!"));
         } else {
             psiYaz(t, sensor.psiOnda());
-            strcat(t, " psi");
+            strcat(t, "psi");
             g.yaz(0, 0, t);
+            if (potDoldu && yanip)               g.sagaYaz(0, F("POT!"));
+            else if (!boya)                      g.sagaYaz(0, F("BEKLE"));
+            else if (Sistem::maxSureAsildi())    g.sagaYaz(0, yanip ? F("MAKS!") : F("BIRAK"));
+            else if (Sistem::puskurtuyor())      g.sagaYaz(0, F(OK_SAG "PÜSK"));
+            else if (tetik.basincYetersiz())     g.sagaYaz(0, F("DÜŞÜK"));
+            else                                 g.sagaYaz(0, F("HAZIR"));
         }
-        char oran[8];
-        itoa(ayar.oranBoya, oran, 10);
-        strcat(oran, ":");
-        itoa(ayar.oranSert, oran + strlen(oran), 10);
-        if (!sensor.hata()) g.sagaYaz(0, oran);
 
-        // Satır 2: seçili bilgi sayfası
+        // --- Satır 2 ---
+        if (potDoldu && !yanip) {
+            g.satir(1, F("Temizlik yapın!"));
+            return;
+        }
+        if (!boya) {
+            g.satir(1, F("^Boya  vTemizlik"));
+            return;
+        }
+
         switch (_sayfa) {
-            case 0: _durumSatiri(g, yanip, potDoldu); break;
-            case 1: {
+            case 0: {   // Motor hızı + hesaplanan akış
+                g.yaz(0, 1, F("Hız"));
+                itoa(ayar.motorHizi, t, 10);
+                g.yaz(4, 1, t);
+                itoa((int)(Sistem::akisMlDk() + 0.5f), t, 10);
+                strcat(t, "ml/dk");
+                g.sagaYaz(1, t);
+                break;
+            }
+            case 1: {   // Karışım oranı
+                g.yaz(0, 1, F("Oran"));
+                itoa(ayar.oranBoya, t, 10);
+                strcat(t, " : ");
+                itoa(ayar.oranSert, t + strlen(t), 10);
+                g.sagaYaz(1, t);
+                break;
+            }
+            case 2: {   // Tetik hassasiyeti
+                if (ayar.tetikModu == TETIK_AKILLI) {
+                    g.yaz(0, 1, F("Tetik Fark"));
+                    Gosterge::ondalik(t, ayar.tetikFark_x10, 1);
+                } else {
+                    g.yaz(0, 1, F("Tetik Eşik"));
+                    Gosterge::ondalik(t, ayar.tetikMutlak_x10, 1);
+                }
+                g.sagaYaz(1, t);
+                break;
+            }
+            case 3: {   // Tetik canlı (salt okunur)
                 char e[8];
                 t[0] = 0;
                 if (tetik.cekili()) {
-                    // Çekiliyken: akış basıncı
                     strcat(t, "Akış:");
                     psiYaz(e, onda(tetik.akisBasinci()));
                     strcat(t, e);
-                    strcat(t, " *");
                 } else if (ayar.tetikModu == TETIK_AKILLI) {
-                    // R: statik basınç, D: son pencerede anlık düşüş
                     strcat(t, "R:");
                     psiYaz(e, onda(tetik.referans()));
                     strcat(t, e);
@@ -113,13 +197,7 @@ public:
                 g.satir(1, t);
                 break;
             }
-            case 2:
-                g.satir(1, F("Akış:"));
-                mlYaz(t, Sistem::akisMlDk());
-                strcat(t, "ml/dk");
-                g.sagaYaz(1, t);
-                break;
-            case 3: {
+            case 4: {   // Oturum tüketimi
                 char s[10];
                 strcpy(t, "B:");
                 mlYaz(s, Sistem::oturumBoyaMl());
@@ -130,7 +208,7 @@ public:
                 g.satir(1, t);
                 break;
             }
-            case 4: {
+            case 5: {   // Pot ömrü
                 int32_t kalan = Sistem::potKalanSn();
                 g.satir(1, F("Pot ömrü:"));
                 if (kalan < 0) {
@@ -145,37 +223,66 @@ public:
     }
 
 private:
-    void _durumSatiri(Gosterge& g, bool yanip, bool potDoldu) {
-        char t[24];
-        if (potDoldu && yanip) {
-            g.satir(1, F("POT ÖMRÜ DOLDU!"));
-            return;
+    void _degistir(int8_t yon, uint8_t tekrar) {
+        switch (_sayfa) {
+            case 0: {
+                int16_t v = ayar.motorHizi + yon * MOTOR_RPM_ADIM * (tekrar > 15 ? 2 : 1);
+                if (v < MOTOR_MIN_RPM) v = MOTOR_MIN_RPM;
+                if (v > MOTOR_MAX_RPM) v = MOTOR_MAX_RPM;
+                ayar.motorHizi = v;
+                break;
+            }
+            case 1: {
+                if (t_tekrarKilit(tekrar)) return;
+                float simdiki = boyaPayi(ayar.oranBoya, ayar.oranSert);
+                // YUKARI: daha çok boya (listede yukarı), AŞAĞI: daha çok sertleştirici
+                int8_t bulunan = -1;
+                if (yon > 0) {
+                    for (int8_t i = ORAN_SAYISI - 1; i >= 0; i--) {
+                        uint8_t a = pgm_read_byte(&ORAN_LISTESI[i][0]);
+                        uint8_t b = pgm_read_byte(&ORAN_LISTESI[i][1]);
+                        if (boyaPayi(a, b) > simdiki + 0.0001f) { bulunan = i; break; }
+                    }
+                } else {
+                    for (uint8_t i = 0; i < ORAN_SAYISI; i++) {
+                        uint8_t a = pgm_read_byte(&ORAN_LISTESI[i][0]);
+                        uint8_t b = pgm_read_byte(&ORAN_LISTESI[i][1]);
+                        if (boyaPayi(a, b) < simdiki - 0.0001f) { bulunan = i; break; }
+                    }
+                }
+                if (bulunan < 0) return;
+                ayar.oranBoya = pgm_read_byte(&ORAN_LISTESI[bulunan][0]);
+                ayar.oranSert = pgm_read_byte(&ORAN_LISTESI[bulunan][1]);
+                break;
+            }
+            case 2: {
+                uint16_t& p = ayar.tetikModu == TETIK_AKILLI ? ayar.tetikFark_x10
+                                                             : ayar.tetikMutlak_x10;
+                int16_t adim = tekrar > 15 ? 10 : 5;         // 0.5 / 1.0 psi
+                int16_t v = (int16_t)p + yon * adim;
+                int16_t enAz = ayar.tetikModu == TETIK_AKILLI ? 5 : 10;
+                int16_t enCok = ayar.tetikModu == TETIK_AKILLI ? 500 : 1900;
+                if (v < enAz) v = enAz;
+                if (v > enCok) v = enCok;
+                p = v;
+                break;
+            }
+            default:
+                return;   // bilgi sayfaları değiştirilemez
         }
-        if (potDoldu) {
-            g.satir(1, F("Temizlik yapın"));
-            return;
-        }
-        if (Sistem::mod() != MOD_BOYA) {
-            g.satir(1, F("Bekleme  OK=Menü"));
-            return;
-        }
-        if (sensor.hata()) {
-            g.satir(1, F("Pompa durduruldu"));
-        } else if (Sistem::maxSureAsildi()) {
-            g.satir(1, yanip ? F("MAKS SÜRE!") : F("Tetiği bırakın"));
-        } else if (Sistem::puskurtuyor()) {
-            g.satir(1, F(OK_SAG "PÜSKÜRTME"));
-            sureYaz(t, Sistem::puskurtmeSuresiMs() / 1000);
-            g.sagaYaz(1, t);
-        } else if (tetik.basincYetersiz()) {
-            g.satir(1, F("Düşük basınç!"));
-        } else {
-            g.satir(1, F("BOYA HAZIR"));
-        }
+        Sistem::ayarlariUygula();
+        Sistem::kaydetIste();
     }
 
-    static const uint8_t SAYFA = 5;
+    // Oran listesinde basılı tutunca çok hızlı atlamasın: 3 tekrarda bir ilerle
+    static bool t_tekrarKilit(uint8_t tekrar) {
+        return tekrar > 0 && (tekrar % 3) != 0;
+    }
+
+    static const uint8_t SAYFA = 6;
     uint8_t _sayfa = 0;
+    bool _okBasili = false;
+    bool _okUzun = false;
 };
 
 // ---------------------------------------------------------------

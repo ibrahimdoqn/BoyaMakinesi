@@ -70,7 +70,7 @@ void PompaSurucu::begin(uint8_t step1, uint8_t dir1, uint8_t en1,
         k.faz = k.artis = k.sayac = k.limit = 0;
         k.limitAktif = k.limitBitti = k.yuksek = false;
 
-        _hedef[m] = _hiz[m] = 0;
+        _hedef[m] = _hiz[m] = _rampaRef[m] = 0;
         _enAcik[m] = false;         // sürücü başlangıçta pasif
         _durmaZamani[m] = 0;
     }
@@ -113,6 +113,11 @@ void PompaSurucu::hizAyarla(uint8_t m, float adimSn) {
     if (m >= MOTOR_SAYISI) return;
     if (adimSn < 0) adimSn = 0;
     if (adimSn > MUTLAK_MAX_HIZ) adimSn = MUTLAK_MAX_HIZ;
+    if (adimSn != _hedef[m]) {
+        // Rampa eğimi hedef değiştiğinde sabitlenir: hız doğrusal değişir ve
+        // hedefe rampa süresi içinde kesin olarak ulaşır.
+        _rampaRef[m] = adimSn > _hiz[m] ? adimSn : _hiz[m];
+    }
     _hedef[m] = adimSn;
     if (_rampaMs == 0) {
         _hiz[m] = adimSn;
@@ -163,7 +168,7 @@ void PompaSurucu::guncelle() {
             if (_rampaMs == 0) {
                 _hiz[m] = _hedef[m];
             } else {
-                float ref = _hedef[m] > _hiz[m] ? _hedef[m] : _hiz[m];
+                float ref = _rampaRef[m] > 1.0f ? _rampaRef[m] : 1.0f;
                 float adim = ref * dt / _rampaMs;
                 if (_hiz[m] < _hedef[m]) {
                     _hiz[m] += adim;

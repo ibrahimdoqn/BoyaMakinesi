@@ -46,8 +46,8 @@ void Temizlik::guncelle() {
     uint32_t simdi = millis();
 
     if (_durum == TMZ_HAZIRLIK) {
-        // Önceki pompalama tamamen durduktan sonra başla
-        if (!_p->calisiyor()) {
+        // Önceki pompalama durduktan sonra başla (en fazla 1 sn bekle)
+        if (!_p->calisiyor() || simdi - _baslangic >= 1000) {
             _durum = TMZ_POMPALIYOR;
             _darbeAcik = true;
             _darbeZamani = simdi;

@@ -56,6 +56,7 @@ private:
     uint16_t _rampaMs = 150;
     float _hedef[MOTOR_SAYISI];
     float _hiz[MOTOR_SAYISI];
+    float _rampaRef[MOTOR_SAYISI];   // rampa eğimi için referans hız (doğrusal rampa)
     uint32_t _durmaZamani[MOTOR_SAYISI];
     uint32_t _sonRampa = 0;
 };
